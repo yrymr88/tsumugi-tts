@@ -271,6 +271,25 @@
     width: 0%;
   }
 
+  /* キャラクター */
+  .chara-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: 140px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .chara-wrap img {
+    height: 140px;
+    width: auto;
+    object-fit: contain;
+    position: absolute;
+    transition: opacity 0.05s;
+    filter: drop-shadow(0 4px 12px rgba(200,120,100,0.15));
+  }
+  .chara-wrap img.hidden { opacity: 0; }
+
   /* 波形アニメ */
   .wave {
     display: none;
@@ -309,6 +328,10 @@
 </header>
 
 <main>
+  <div class="chara-wrap">
+    <img id="imgClose" src="close.png" alt="つむぎ">
+    <img id="imgOpen"  src="open.png"  alt="つむぎ" class="hidden">
+  </div>
   <textarea id="inputText" placeholder="読み上げる文章を貼り付けてください。長文も分割して読み上げます。"></textarea>
 
   <div class="controls">
@@ -356,6 +379,26 @@ function unlockAudio() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
+}
+
+// ぱくぱく制御
+let pakuTimer = null;
+let pakuState = false;
+
+function startPaku() {
+  if (pakuTimer) return;
+  pakuTimer = setInterval(() => {
+    pakuState = !pakuState;
+    document.getElementById('imgOpen').classList.toggle('hidden', !pakuState);
+    document.getElementById('imgClose').classList.toggle('hidden', pakuState);
+  }, 280);
+}
+
+function stopPaku() {
+  if (pakuTimer) { clearInterval(pakuTimer); pakuTimer = null; }
+  pakuState = false;
+  document.getElementById('imgOpen').classList.add('hidden');
+  document.getElementById('imgClose').classList.remove('hidden');
 }
 
 // 文字数カウント
@@ -478,7 +521,8 @@ async function playBuffer(buffer, speed) {
     currentSource.buffer = buffer;
     currentSource.playbackRate.value = speed;
     currentSource.connect(audioCtx.destination);
-    currentSource.onended = resolve;
+    currentSource.onended = () => { stopPaku(); resolve(); };
+    startPaku();
     currentSource.start(0);
   });
 }
@@ -545,6 +589,7 @@ async function startReading() {
 
 function stopReading() {
   isStopped = true;
+  stopPaku();
   if (currentSource) {
     try { currentSource.stop(); } catch(e) {}
     currentSource = null;
