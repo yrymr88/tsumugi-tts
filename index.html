@@ -439,17 +439,14 @@ function setProgress(cur, total) {
   bar.style.width = `${Math.round((cur / total) * 100)}%`;
 }
 
-async function fetchAudio(text, speed) {
-  const params = new URLSearchParams({
-    speaker: SPEAKER_ID,
-    text: text,
-  });
+// mp3URLを取得するまで（合成リクエスト＋ポーリング）
+async function fetchMp3Url(text) {
+  const params = new URLSearchParams({ speaker: SPEAKER_ID, text });
   const res = await fetch(`${API_BASE}?${params}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error('合成失敗');
 
-  // 合成完了を待つ（最大30秒）
   const statusUrl = json.audioStatusUrl;
   const mp3Url = json.mp3DownloadUrl;
   for (let i = 0; i < 60; i++) {
@@ -463,22 +460,26 @@ async function fetchAudio(text, speed) {
   throw new Error('タイムアウト');
 }
 
-async function playUrl(url, speed) {
-  const res = await fetch(url);
+// mp3URLからAudioBufferを取得
+async function fetchBuffer(mp3Url) {
+  const res = await fetch(mp3Url);
   if (!res.ok) throw new Error('音声取得失敗');
   const arrayBuffer = await res.arrayBuffer();
-  if (isStopped) throw new Error('stopped');
-
   return new Promise((resolve, reject) => {
-    audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-      if (isStopped) { resolve(); return; }
-      currentSource = audioCtx.createBufferSource();
-      currentSource.buffer = buffer;
-      currentSource.playbackRate.value = speed;
-      currentSource.connect(audioCtx.destination);
-      currentSource.onended = resolve;
-      currentSource.start(0);
-    }, reject);
+    audioCtx.decodeAudioData(arrayBuffer, resolve, reject);
+  });
+}
+
+// AudioBufferを再生
+async function playBuffer(buffer, speed) {
+  if (isStopped) throw new Error('stopped');
+  return new Promise((resolve) => {
+    currentSource = audioCtx.createBufferSource();
+    currentSource.buffer = buffer;
+    currentSource.playbackRate.value = speed;
+    currentSource.connect(audioCtx.destination);
+    currentSource.onended = resolve;
+    currentSource.start(0);
   });
 }
 
@@ -486,7 +487,7 @@ async function startReading() {
   const text = inputText.value.trim();
   if (!text) { setStatus('テキストを入力してください', 'error'); return; }
 
-  unlockAudio(); // iOS: タップイベント内でAudioContextを起動
+  unlockAudio();
   isStopped = false;
   isPlaying = true;
   document.getElementById('playBtn').disabled = true;
@@ -496,15 +497,31 @@ async function startReading() {
   setProgress(0, chunks.length);
 
   try {
+    // 最初のチャンクを合成
+    setStatus(`合成中… (1/${chunks.length})`, 'loading');
+    let currentBufferPromise = fetchMp3Url(chunks[0]).then(url => fetchBuffer(url));
+
     for (let i = 0; i < chunks.length; i++) {
       if (isStopped) break;
-      setStatus(`合成中… (${i + 1}/${chunks.length})`, 'loading');
-      const mp3Url = await fetchAudio(chunks[i], speed);
+
+      // 次のチャンクの合成を裏で開始
+      let nextBufferPromise = null;
+      if (i + 1 < chunks.length) {
+        nextBufferPromise = fetchMp3Url(chunks[i + 1]).then(url => fetchBuffer(url));
+      }
+
+      // 現在のチャンクのバッファが揃うのを待つ
+      const buffer = await currentBufferPromise;
       if (isStopped) break;
+
       setStatus(`再生中 (${i + 1}/${chunks.length})`, 'active');
       setProgress(i + 1, chunks.length);
-      await playUrl(mp3Url, speed);
+      await playBuffer(buffer, speed);
+
+      // 次のバッファを引き継ぐ
+      currentBufferPromise = nextBufferPromise;
     }
+
     if (!isStopped) {
       setStatus('読み上げ完了 ✓');
       setProgress(chunks.length, chunks.length);
