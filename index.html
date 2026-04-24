@@ -120,6 +120,7 @@
   textarea {
     flex: 1;
     width: 0;
+    min-width: 0;
     border: 1.5px solid var(--border);
     border-radius: 16px;
     padding: 16px;
@@ -282,17 +283,18 @@
 
   /* キャラクター */
   .chara-wrap {
-    width: 120px;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
     display: flex;
     justify-content: center;
     align-items: flex-end;
     position: relative;
   }
   .chara-wrap img {
-    width: 120px;
-    height: auto;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
+    object-position: bottom center;
     position: absolute;
     bottom: 0;
     transition: opacity 0.05s;
