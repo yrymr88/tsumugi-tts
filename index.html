@@ -345,6 +345,18 @@ let audioQueue = [];
 let isPlaying = false;
 let currentAudio = null;
 let isStopped = false;
+let audioCtx = null;
+let currentSource = null;
+
+// iOS Safari対応: タップ時にAudioContextを初期化
+function unlockAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
 
 // 文字数カウント
 const inputText = document.getElementById('inputText');
@@ -452,12 +464,21 @@ async function fetchAudio(text, speed) {
 }
 
 async function playUrl(url, speed) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('音声取得失敗');
+  const arrayBuffer = await res.arrayBuffer();
+  if (isStopped) throw new Error('stopped');
+
   return new Promise((resolve, reject) => {
-    currentAudio = new Audio(url);
-    currentAudio.playbackRate = speed;
-    currentAudio.onended = resolve;
-    currentAudio.onerror = reject;
-    currentAudio.play().catch(reject);
+    audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+      if (isStopped) { resolve(); return; }
+      currentSource = audioCtx.createBufferSource();
+      currentSource.buffer = buffer;
+      currentSource.playbackRate.value = speed;
+      currentSource.connect(audioCtx.destination);
+      currentSource.onended = resolve;
+      currentSource.start(0);
+    }, reject);
   });
 }
 
@@ -465,6 +486,7 @@ async function startReading() {
   const text = inputText.value.trim();
   if (!text) { setStatus('テキストを入力してください', 'error'); return; }
 
+  unlockAudio(); // iOS: タップイベント内でAudioContextを起動
   isStopped = false;
   isPlaying = true;
   document.getElementById('playBtn').disabled = true;
@@ -506,9 +528,9 @@ async function startReading() {
 
 function stopReading() {
   isStopped = true;
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
+  if (currentSource) {
+    try { currentSource.stop(); } catch(e) {}
+    currentSource = null;
   }
 }
 
