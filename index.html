@@ -108,9 +108,18 @@
     overflow: hidden;
   }
 
+  .main-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
   textarea {
     flex: 1;
-    width: 100%;
+    width: 0;
     border: 1.5px solid var(--border);
     border-radius: 16px;
     padding: 16px;
@@ -273,20 +282,22 @@
 
   /* キャラクター */
   .chara-wrap {
+    width: 120px;
+    flex-shrink: 0;
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    height: 140px;
-    flex-shrink: 0;
     position: relative;
   }
   .chara-wrap img {
-    height: 140px;
-    width: auto;
+    width: 120px;
+    height: auto;
     object-fit: contain;
     position: absolute;
+    bottom: 0;
     transition: opacity 0.05s;
-    filter: drop-shadow(0 4px 12px rgba(200,120,100,0.15));
+    filter: drop-shadow(0 4px 12px rgba(200,120,100,0.2));
+    mix-blend-mode: multiply;
   }
   .chara-wrap img.hidden { opacity: 0; }
 
@@ -328,11 +339,13 @@
 </header>
 
 <main>
-  <div class="chara-wrap">
-    <img id="imgClose" src="close.png" alt="つむぎ">
-    <img id="imgOpen"  src="open.png"  alt="つむぎ" class="hidden">
+  <div class="main-body">
+    <textarea id="inputText" placeholder="読み上げる文章を貼り付けてください。長文も分割して読み上げます。"></textarea>
+    <div class="chara-wrap">
+      <img id="imgClose" src="close.png" alt="つむぎ">
+      <img id="imgOpen"  src="open.png"  alt="つむぎ" class="hidden">
+    </div>
   </div>
-  <textarea id="inputText" placeholder="読み上げる文章を貼り付けてください。長文も分割して読み上げます。"></textarea>
 
   <div class="controls">
     <div class="progress-wrap" id="progressWrap">
