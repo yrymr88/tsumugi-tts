@@ -117,6 +117,20 @@
     min-height: 0;
   }
 
+  /* iPhoneなど縦画面では上下レイアウト */
+  @media (max-aspect-ratio: 1/1) {
+    .main-body {
+      flex-direction: column;
+    }
+    .chara-wrap {
+      flex: 3 !important;
+    }
+    textarea {
+      flex: 1 !important;
+      width: 100% !important;
+    }
+  }
+
   textarea {
     flex: 1;
     width: 0;
