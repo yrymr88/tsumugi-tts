@@ -586,10 +586,12 @@ async function startReading() {
     for (let i = 0; i < chunks.length; i++) {
       if (isStopped) break;
 
-      // 次のチャンクの合成を裏で開始
+      // 次のチャンクの合成を裏で開始（3秒遅らせて429を防ぐ）
       let nextBufferPromise = null;
       if (i + 1 < chunks.length) {
-        nextBufferPromise = fetchMp3Url(chunks[i + 1]).then(url => fetchBuffer(url));
+        nextBufferPromise = new Promise(r => setTimeout(r, 3000))
+          .then(() => isStopped ? Promise.reject(new Error('stopped')) : fetchMp3Url(chunks[i + 1]))
+          .then(url => fetchBuffer(url));
       }
 
       // 現在のチャンクのバッファが揃うのを待つ
