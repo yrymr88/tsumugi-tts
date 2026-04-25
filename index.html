@@ -520,30 +520,24 @@ function setProgress(cur, total) {
   bar.style.width = `${Math.round((cur / total) * 100)}%`;
 }
 
-// mp3URLを取得するまで（合成リクエスト＋ポーリング）
-async function fetchMp3Url(text) {
+// 合成リクエストしてストリーミングURLを返す（ポーリング不要）
+async function fetchStreamingUrl(text) {
   const params = new URLSearchParams({ speaker: SPEAKER_ID, text });
   const res = await fetch(`${API_BASE}?${params}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error('合成失敗');
-
-  const statusUrl = json.audioStatusUrl;
-  const mp3Url = json.mp3DownloadUrl;
-  for (let i = 0; i < 60; i++) {
-    if (isStopped) throw new Error('stopped');
-    await new Promise(r => setTimeout(r, 500));
-    const s = await fetch(statusUrl);
-    const sj = await s.json();
-    if (sj.isAudioError) throw new Error('合成エラー');
-    if (sj.isAudioReady) return mp3Url;
-  }
-  throw new Error('タイムアウト');
+  return json.mp3StreamingUrl;
 }
 
-// mp3URLからAudioBufferを取得
-async function fetchBuffer(mp3Url) {
-  const res = await fetch(mp3Url);
+// ストリーミングURLからAudioBufferを取得（合成完了まで待機しながらfetch）
+async function fetchBuffer(streamUrl) {
+  // ストリーミングURLは即時利用可能だが、
+  // AudioContext用にArrayBufferとして取得する
+  // 合成が追いつくまで少し待ってからfetchする
+  await new Promise(r => setTimeout(r, 2000));
+  if (isStopped) throw new Error('stopped');
+  const res = await fetch(streamUrl);
   if (!res.ok) throw new Error('音声取得失敗');
   const arrayBuffer = await res.arrayBuffer();
   return new Promise((resolve, reject) => {
@@ -583,10 +577,10 @@ async function startReading() {
       if (isStopped) break;
 
       setStatus(`合成中… (${i + 1}/${chunks.length})`, 'loading');
-      const mp3Url = await fetchMp3Url(chunks[i]);
+      const streamUrl = await fetchStreamingUrl(chunks[i]);
       if (isStopped) break;
 
-      const buffer = await fetchBuffer(mp3Url);
+      const buffer = await fetchBuffer(streamUrl);
       if (isStopped) break;
 
       setStatus(`再生中 (${i + 1}/${chunks.length})`, 'active');
