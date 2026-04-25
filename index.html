@@ -579,31 +579,24 @@ async function startReading() {
   setProgress(0, chunks.length);
 
   try {
-    // 最初のチャンクを合成
-    setStatus(`合成中… (1/${chunks.length})`, 'loading');
-    let currentBufferPromise = fetchMp3Url(chunks[0]).then(url => fetchBuffer(url));
-
     for (let i = 0; i < chunks.length; i++) {
       if (isStopped) break;
 
-      // 次のチャンクの合成を裏で開始（3秒遅らせて429を防ぐ）
-      let nextBufferPromise = null;
-      if (i + 1 < chunks.length) {
-        nextBufferPromise = new Promise(r => setTimeout(r, 3000))
-          .then(() => isStopped ? Promise.reject(new Error('stopped')) : fetchMp3Url(chunks[i + 1]))
-          .then(url => fetchBuffer(url));
-      }
+      setStatus(`合成中… (${i + 1}/${chunks.length})`, 'loading');
+      const mp3Url = await fetchMp3Url(chunks[i]);
+      if (isStopped) break;
 
-      // 現在のチャンクのバッファが揃うのを待つ
-      const buffer = await currentBufferPromise;
+      const buffer = await fetchBuffer(mp3Url);
       if (isStopped) break;
 
       setStatus(`再生中 (${i + 1}/${chunks.length})`, 'active');
       setProgress(i + 1, chunks.length);
       await playBuffer(buffer, speed);
 
-      // 次のバッファを引き継ぐ
-      currentBufferPromise = nextBufferPromise;
+      // チャンク間に2秒ディレイ
+      if (i + 1 < chunks.length && !isStopped) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
 
     if (!isStopped) {
